@@ -1,4 +1,6 @@
-﻿<!DOCTYPE html>
+﻿@using Schedule.Views;
+
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
@@ -34,6 +36,29 @@
     </header>
     <div class="container">
         <main role="main" class="pb-3">
+            <div class="container">
+                @if (TempData[Utils.FlashMessagesKeys.Success] != null)
+                {
+                    <div class="alert alert-success" role="alert">
+                        @TempData[Utils.FlashMessagesKeys.Success]
+                    </div>
+                }
+
+                @if (TempData[Utils.FlashMessagesKeys.Warning] != null)
+                {
+                    <div class="alert alert-warning" role="alert">
+                        @TempData[Utils.FlashMessagesKeys.Warning]
+                    </div>
+                }
+
+                @if (TempData[Utils.FlashMessagesKeys.Error] != null)
+                {
+                    <div class="alert alert-danger" role="alert">
+                        @TempData[Utils.FlashMessagesKeys.Error]
+                    </div>
+                }
+            </div>
+
             @RenderBody()
         </main>
     </div>

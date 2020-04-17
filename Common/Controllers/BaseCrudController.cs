@@ -7,34 +7,42 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
-using Schedule.Contracts.Data;
+using Schedule.Common.Services;
+using Schedule.Common.Contracts.Data;
+using Schedule.Data;
+using Schedule.Common.Contracts;
+using static Schedule.Views.Utils;
 
-namespace Schedule.Base
+namespace Schedule.Common.Controllers
 {
-    public class BaseCrudController<DbModel, ViewModel, Repository> : Controller 
-        where Repository: IRepository<DbModel>
-        where DbModel: class
-        where ViewModel: class
+    public class BaseCrudController<TEntity, TViewModel> : Controller 
+        where TEntity: Entity, new() 
+        where TViewModel: class
     {
-        protected readonly Repository _repository;
+        protected readonly ICRUDService<TEntity> _crudService;
         protected readonly IMapper _mapper;
         protected readonly ILogger _logger;
         protected readonly IStringLocalizer _localizer;
 
         protected static class DefaultLocalizerKeys
         {
-            public static string CreateException = "CreateException";
-            public static string CreateNotCreated = "CreateNotCreated";
-            public static string UpdateException = "UpdateException";
-            public static string UpdateNotUpdated = "UpdateNotUpdated";
-            public static string DeleteException = "DeleteException";
-            public static string DeleteNotDeleted = "DeleteNotDeleted";
+            public static readonly string CreateException = "CreateException";
+            public static readonly string CreateNotCreated = "CreateNotCreated";
+            public static readonly string CreateSuccess = "CreateSuccess";
+
+            public static readonly string UpdateException = "UpdateException";
+            public static readonly string UpdateNotUpdated = "UpdateNotUpdated";
+            public static readonly string UpdateSuccess = "UpdateSuccess";
+
+            public static readonly string DeleteException = "DeleteException";
+            public static readonly string DeleteNotDeleted = "DeleteNotDeleted";
+            public static readonly string DeleteSuccess = "DeleteSuccess";
         }
 
-        public BaseCrudController(Repository repository, IMapper mapper, ILogger logger,
+        public BaseCrudController(ICRUDService<TEntity> crudService, IMapper mapper, ILogger logger,
             IStringLocalizer localizer)
         {
-            _repository = repository;
+            _crudService = crudService;
             _mapper = mapper;
             _logger = logger;
             _localizer = localizer;
@@ -43,27 +51,27 @@ namespace Schedule.Base
         // GET: BaseCrud
         public virtual async Task<ActionResult> Index()
         {
-            var model = await getModelForListView();
+            var model = await GetModelForListView();
             return View(model);
         }
 
-        protected virtual async Task<IEnumerable<ViewModel>> getModelForListView()
+        protected virtual async Task<IEnumerable<TViewModel>> GetModelForListView()
         {
-            var all = await _repository.GetAll();
-            var model = _mapper.Map<IEnumerable<ViewModel>>(all);
+            var all = await _crudService.GetAllAsync();
+            var model = _mapper.Map<IEnumerable<TViewModel>>(all);
             return model;
         }
 
         // GET: BaseCrud/Details/5
         public virtual async Task<ActionResult> Details(int id)
         {
-            var entity = _repository.GetById(id);
+            var entity = _crudService.GetById(id);
             if (entity == null)
             {
                 return NotFound();
             }
 
-            var model = _mapper.Map<ViewModel>(entity);
+            var model = _mapper.Map<TViewModel>(entity);
             return View(model);
         }
 
@@ -73,16 +81,16 @@ namespace Schedule.Base
             return View();
         }
 
-        protected virtual async Task<BeforeCreateResult<DbModel>> beforeCreate(DbModel entity)
+        protected virtual async Task<BeforeCreateResult<TEntity>> BeforeCreate(TEntity entity)
         {
-            return new BeforeCreateResult<DbModel>
+            return new BeforeCreateResult<TEntity>
             {
                 Entity = entity,
                 ShouldCreate = true,
             };
         }
 
-        protected virtual async Task afterCreate(bool isCreated)
+        protected virtual async Task AfterCreate(bool isCreated)
         {
             return;
         } 
@@ -90,7 +98,7 @@ namespace Schedule.Base
         // POST: BaseCrud/Create
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<ActionResult> Create(ViewModel vm)
+        public async Task<ActionResult> Create(TViewModel vm)
         {
             try
             {
@@ -99,12 +107,12 @@ namespace Schedule.Base
                     return View(vm);
                 }
 
-                var dbModel = _mapper.Map<DbModel>(vm);
-                var beforeCreateResult = await beforeCreate(dbModel);
+                var dbModel = _mapper.Map<TEntity>(vm);
+                var beforeCreateResult = await BeforeCreate(dbModel);
 
                 if (!beforeCreateResult.ShouldCreate)
                 {
-                    ModelState.AddModelError("", beforeCreateResult.ShouldNotCreateReason);
+                    TempData[FlashMessagesKeys.Error] = beforeCreateResult.ShouldNotCreateReason;
                     return View(vm);
                 }
                 else
@@ -112,38 +120,39 @@ namespace Schedule.Base
                     dbModel = beforeCreateResult.Entity;
                 }
 
-                var isCreated = await _repository.Create(dbModel);
+                var isCreated = await _crudService.CreateAsync(dbModel);
 
-                await afterCreate(isCreated);
+                await AfterCreate(isCreated);
 
                 if (!isCreated)
                 {
                     var errorMsg = _localizer.GetString(DefaultLocalizerKeys.CreateNotCreated);
-                    ModelState.AddModelError("", errorMsg);
+                    TempData[FlashMessagesKeys.Error] = errorMsg;
                     return View(vm);
                 }
 
+                TempData[FlashMessagesKeys.Success] = DefaultLocalizerKeys.CreateSuccess;
                 return RedirectToAction(nameof(Index));
             }
             catch (Exception exc)
             {
                 var errorMsg = _localizer.GetString(DefaultLocalizerKeys.CreateException);
                 _logger.LogError($"Error in Create: {exc}");
-                ModelState.AddModelError("", errorMsg);
+                TempData[FlashMessagesKeys.Error] = errorMsg;
                 return View(vm);
             }
         }
 
-        protected virtual async Task<BeforeUpdateResult<DbModel>> beforeUpdate(DbModel entity)
+        protected virtual async Task<BeforeUpdateResult<TEntity>> BeforeUpdate(TEntity entity)
         {
-            return new BeforeUpdateResult<DbModel>
+            return new BeforeUpdateResult<TEntity>
             {
                 Entity = entity,
                 ShouldUpdate = true,
             };
         }
 
-        protected virtual async Task afterUpdated(bool isUpdated)
+        protected virtual async Task AfterUpdated(bool isUpdated)
         {
             return;
         }
@@ -157,11 +166,11 @@ namespace Schedule.Base
         // POST: BaseCrud/Edit/5
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public virtual async Task<ActionResult> Update(int id, ViewModel vm)
+        public virtual async Task<ActionResult> Update(int id, TViewModel vm)
         {
             try
             {
-                if (! await _repository.ExistsWithId(id))
+                if (! await _crudService.ExistsWithIdAsync(id))
                 {
                     return NotFound();
                 }
@@ -171,12 +180,12 @@ namespace Schedule.Base
                     return View(vm);
                 }
 
-                var dbModel = _mapper.Map<DbModel>(vm);
-                var beforeUpdateResult = await beforeUpdate(dbModel);
+                var dbModel = _mapper.Map<TEntity>(vm);
+                var beforeUpdateResult = await BeforeUpdate(dbModel);
 
                 if (!beforeUpdateResult.ShouldUpdate)
                 {
-                    ModelState.AddModelError("", beforeUpdateResult.ShouldNotUpdateReason);
+                    TempData[FlashMessagesKeys.Error] = beforeUpdateResult.ShouldNotUpdateReason;
                     return View(vm);
                 }
                 else
@@ -184,30 +193,31 @@ namespace Schedule.Base
                     dbModel = beforeUpdateResult.Entity;
                 }
 
-                var isUpdated = await _repository.Update(dbModel);
+                var isUpdated = await _crudService.UpdateAsync(dbModel);
 
-                await afterUpdated(isUpdated);
+                await AfterUpdated(isUpdated);
                 if (!isUpdated)
                 {
                     var errorMsg = _localizer.GetString(DefaultLocalizerKeys.UpdateNotUpdated);
-                    ModelState.AddModelError("", errorMsg);
+                    TempData[FlashMessagesKeys.Error] = errorMsg;
                     return View(vm);
                 }
 
+                TempData[FlashMessagesKeys.Success] = DefaultLocalizerKeys.UpdateSuccess;
                 return RedirectToAction(nameof(Index));
             }
             catch (Exception exc)
             {
                 _logger.LogError($"Update {id}: {exc}");
                 var errorMsg = _localizer.GetString(DefaultLocalizerKeys.UpdateException);
-                ModelState.AddModelError("", errorMsg);
+                TempData[FlashMessagesKeys.Error] = errorMsg;
                 return View(vm);
             }
         }
 
-        protected virtual async Task<BeforeDeleteResult<DbModel>> beforeDelete(DbModel entity)
+        protected virtual async Task<BeforeDeleteResult<TEntity>> BeforeDelete(TEntity entity)
         {
-            return new BeforeDeleteResult<DbModel>
+            return new BeforeDeleteResult<TEntity>
             {
                 ShouldDelete = true,
                 Entity = entity,
@@ -215,7 +225,7 @@ namespace Schedule.Base
             };
         }
 
-        protected virtual async Task afterDelete(bool isDeleted)
+        protected virtual async Task AfterDelete(bool isDeleted)
         {
             return;
         }
@@ -234,13 +244,13 @@ namespace Schedule.Base
             try
             {
                 // TODO: Add delete logic here
-                var entity = await _repository.GetById(id);
+                var entity = await _crudService.GetByIdAsync(id);
                 if (entity == null)
                 {
                     return NotFound();
                 }
 
-                var beforeDeleteResult = await beforeDelete(entity);
+                var beforeDeleteResult = await BeforeDelete(entity);
 
                 if (!beforeDeleteResult.ShouldDelete)
                 {
@@ -251,13 +261,14 @@ namespace Schedule.Base
                     entity = beforeDeleteResult.Entity;
                 }
 
-                var isDeleted = await _repository.Delete(entity);
+                var isDeleted = await _crudService.DeleteAsync(entity);
 
-                await afterDelete(isDeleted);
+                await AfterDelete(isDeleted);
 
                 if (!isDeleted)
                 {
                     var errorMsg = _localizer.GetString(DefaultLocalizerKeys.DeleteNotDeleted);
+                    // TempData[FlashMessagesKeys.Error] = errorMsg;
                     return StatusCode(StatusCodes.Status500InternalServerError, errorMsg);
                 }
 

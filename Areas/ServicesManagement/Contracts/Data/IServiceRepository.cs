@@ -1,6 +1,5 @@
 ﻿using Schedule.Areas.ServicesManagement.Data;
-using Schedule.Contracts.Data;
-using Schedule.Data;
+using Schedule.Common.Contracts.Data;
 using System;
 using System.Collections.Generic;
 using System.Linq;

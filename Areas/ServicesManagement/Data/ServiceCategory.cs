@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Schedule.Data;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
@@ -6,11 +7,8 @@ using System.Threading.Tasks;
 
 namespace Schedule.Areas.ServicesManagement.Data
 {
-    public class ServiceCategory
+    public class ServiceCategory: Entity
     {
-        [Key]
-        public int Id { get; set; }
-
         [Required]
         [MaxLength(30, ErrorMessage = "Should not be more than 30 symbols!")]
         public string Name { get; set; }

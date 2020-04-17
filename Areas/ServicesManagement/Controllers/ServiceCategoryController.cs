@@ -6,28 +6,26 @@ using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
-using Schedule.Areas.ServicesManagement.Contracts.Data;
 using Schedule.Areas.ServicesManagement.Data;
 using Schedule.Areas.ServicesManagement.Models;
-using Schedule.Areas.ServicesManagement.Repositories;
-using Schedule.Base;
+using Schedule.Common.Contracts;
+using Schedule.Common.Controllers;
 
 namespace Schedule.Areas.ServicesManagement.Controllers
 {
     [Area("ServicesManagement")]
     public class ServiceCategoryController :
-        BaseCrudController<ServiceCategory, ServiceCategoryVM, 
-            IServiceCategoryRepository>
+        BaseCrudController<ServiceCategory, ServiceCategoryVM>
     {
-        public ServiceCategoryController(IServiceCategoryRepository repository, IMapper mapper,
+        public ServiceCategoryController(ICRUDService<ServiceCategory> crudService, IMapper mapper,
             ILogger<ServiceCategoryController> logger, IStringLocalizer<ServiceCategoryController> localizer) 
-            : base(repository, mapper, logger, localizer)
+            : base(crudService, mapper, logger, localizer)
         {
         }
 
-        protected override async Task<IEnumerable<ServiceCategoryVM>> getModelForListView()
+        protected override async Task<IEnumerable<ServiceCategoryVM>> GetModelForListView()
         {
-            var dbModels = await _repository.GetAll();
+            var dbModels = await _crudService.GetAllAsync();
             var vm = _mapper.Map<IEnumerable<ServiceCategoryVM>>(dbModels);
             return vm;
         }

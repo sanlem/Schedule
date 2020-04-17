@@ -12,14 +12,15 @@ using Schedule.Data;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Schedule.Contracts.Data;
+using Schedule.Common.Contracts.Data;
 using AutoMapper;
 using Schedule.Mappings;
 using System.Globalization;
 using Microsoft.AspNetCore.Localization;
 using Schedule.Areas.ServicesManagement.Contracts.Data;
-using Schedule.Areas.ServicesManagement.Repositories;
 using Microsoft.AspNetCore.Mvc.Razor;
+using Schedule.Common.Services;
+using Schedule.Common.Contracts;
 
 namespace Schedule
 {
@@ -39,8 +40,12 @@ namespace Schedule
                 options.UseSqlServer(
                     Configuration.GetConnectionString("DefaultConnection")));
 
-            services.AddScoped<IServiceCategoryRepository, ServiceCategoryRepository>();
-            services.AddScoped<IServiceRepository, ServiceRepository>();
+            services.AddScoped<DbContext, ApplicationDbContext>();
+
+            services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+            services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+            services.AddScoped(typeof(ICRUDService<>), typeof(CRUDService<>));
 
             services.AddAutoMapper(typeof(ModelsMapProfile));
             
